@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <title>Add Activity</title>
+    <script type="text/javascript" src="lib/axios/dist/axios.standalone.js"></script>
+    <script type="text/javascript" src="lib/CryptoJS/rollups/hmac-sha256.js"></script>
+    <script type="text/javascript" src="lib/CryptoJS/rollups/sha256.js"></script>
+    <script type="text/javascript" src="lib/CryptoJS/components/hmac.js"></script>
+    <script type="text/javascript" src="lib/CryptoJS/components/enc-base64.js"></script>
+    <script type="text/javascript" src="lib/url-template/url-template.js"></script>
+    <script type="text/javascript" src="lib/apiGatewayCore/sigV4Client.js"></script>
+    <script type="text/javascript" src="lib/apiGatewayCore/apiGatewayClient.js"></script>
+    <script type="text/javascript" src="lib/apiGatewayCore/simpleHttpClient.js"></script>
+    <script type="text/javascript" src="lib/apiGatewayCore/utils.js"></script>
+    <script type="text/javascript" src="apigClient.js"></script>
+    <script type="text/javascript">
+    var userId = "abc";
+    var url = window.location.search;
+    if (url.indexOf("?") != -1) {
+        userId = url.substr(url.indexOf("=") + 1);
+    }
+    // query the group
+    var groups = [];
+
+    var apigClient = apigClientFactory.newClient();
+
+    apigClient.querygroupPost({}, { "userId": userId }, {})
+        .then(function(result) {
+            // Add success callback code here.
+            console.log("good");
+            console.log(result);
+            //var groups = [];
+            for (var i = 0; i < result.data.body.length; i++) {
+                var groupId = result.data.body[i].groupId;
+                var groupName = result.data.body[i].groupName;
+                var groupId = result.data.body[i].groupId;
+                var memberNames = [];
+                var memberNumbers = [];
+                for (var j = 0; j < result.data.body[i].members.length; j++) {
+                    memberNames.push(result.data.body[i].members[j].name);
+                    memberNumbers.push(result.data.body[i].members[j].number);
+                }
+                groups.push([groupName, memberNames, memberNumbers, groupId]);
+            }
+            console.log(groups);
+            addGroupsToSelect();
+        }).catch(function(result) {
+            // Add error callback code here.
+            console.log("bad");
+            console.log(result);
+        });
+
+    function addGroupsToSelect() {
+        var selectGroupName = document.getElementById("GroupName");
+        for (var i = 0; i < groups.length; i++) {
+            var optionGroupName = document.createElement("option");
+            optionGroupName.innerHTML = groups[i][0];
+            selectGroupName.appendChild(optionGroupName);
+        }
+    }
+
+
+    // https://blog.csdn.net/magi1201/article/details/44946021
+    function getDays(day1, day2) {
+        var d1 = day1.getDate();
+        var d2 = day2.getDate();
+
+        var dayMilliSeconds = 1000 * 60 * 60 * 24;
+
+        var d1Ms = d1.getTime();
+        var d2Ms = d2.getTime() + 1;
+
+        var ret = [];
+
+        for (d1Ms; d1Ms <= d2Ms; d1Ms += dayMilliSeconds) {
+            var day = new Date(d1Ms);
+            ret.push(day.getYMD())
+        }
+
+        return ret;
+    }
+
+    Date.prototype.getYMD = function() {
+        var retDate = this.getFullYear() + "-";
+        if (this.getMonth() + 1 < 10) {
+            retDate += "0" + (this.getMonth() + 1) + "-";
+        } else {
+            retDate += this.getMonth() + 1 + "-";
+        }
+        if (this.getDate() < 10) {
+            retDate += "0" + this.getDate();
+        } else {
+            retDate += this.getDate();
+        }
+        return retDate;
+    }
+
+    String.prototype.getDate = function() {
+        var strArr = this.split('-');
+        var date = new Date(strArr[0], strArr[1] - 1, strArr[2]);
+        return date;
+    }
+
+    var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    var rdays = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    var maxDayIndex = -1;
+    var maxGroupMemberIndex = -1;
+
+    function checkTime(startYear, startMonth, startDay, endYear, endMonth, endDay) {
+        if ((startYear % 4 == 0 && startYear % 100 != 0) || startYear % 400 == 0) {
+            if (rdays[startMonth - 1] < startDay) {
+                return false;
+            }
+        } else {
+            if (days[startMonth - 1] < startDay) {
+                return false;
+            }
+        }
+        if ((endYear % 4 == 0 && endYear % 100 != 0) || endYear % 400 == 0) {
+            if (rdays[endMonth - 1] < endDay) {
+                return false;
+            }
+        } else {
+            if (days[endMonth - 1] < endDay) {
+                return false;
+            }
+        }
+        if (startYear < endYear || startMonth < endMonth || startDay < endDay) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    function createDayCard(groupMember, dayString, index) {
+        var dayCard = document.createElement("div");
+        dayCard.className = "card";
+        var dayCardHeader = document.createElement("h6");
+        dayCardHeader.className = "card-header";
+        dayCardHeader.innerHTML = dayString;
+        dayCardHeader.id = "dayString-" + index;
+        var dayCardBody = document.createElement("div");
+        dayCardBody.className = "card-body";
+        var form = document.createElement("form");
+        for (var i = 0; i < groupMember.length; i++) {
+            var divRow = document.createElement("div");
+            divRow.className = "form-row align-items-center";
+
+            var status = document.createElement("span");
+            status.className = "badge badge-secondary";
+            status.innerHTML = "Unsched";
+            status.id = "status-" + index + "-" + i;
+
+            var nameDiv = document.createElement("div");
+            nameDiv.className = "col-2";
+            var nameH5 = document.createElement("h5");
+            nameH5.innerHTML = groupMember[i];
+            nameDiv.appendChild(nameH5);
+
+            var divGap = document.createElement("div")
+            divGap.className = "col-auto my-1"
+            var gap = document.createElement("select");
+            gap.className = "custom-select my-1 mr-sm-2";
+            gap.id = "gap-" + index + "-" + i;
+            var gapOption0 = document.createElement("option");
+            gapOption0.innerHTML = "Only this day";
+            var gapOption1 = document.createElement("option");
+            gapOption1.innerHTML = "Every one day from this day";
+            var gapOption2 = document.createElement("option");
+            gapOption2.innerHTML = "Every two days from this day";
+            var gapOption7 = document.createElement("option");
+            gapOption7.innerHTML = "Every seven days from this day";
+            gap.appendChild(gapOption0);
+            gap.appendChild(gapOption1);
+            gap.appendChild(gapOption2);
+            gap.appendChild(gapOption7);
+            gap.selectedIndex = 0;
+            divGap.appendChild(gap)
+
+            var divAlertTime = document.createElement("div")
+            divAlertTime.className = "col-auto my-1"
+            var alertTime = document.createElement("select");
+            alertTime.className = "custom-select my-1 mr-sm-2";
+            alertTime.id = "alertTime-" + index + "-" + i;
+            for (var j = 7; j < 22; j++) {
+                var alertTimeOption = document.createElement("option");
+                alertTimeOption.innerHTML = j + ":00 - " + (j + 1) + ":00";
+                if (j < 10) {
+                    alertTimeOption.value = "0" + j + ":00";
+                } else {
+                    alertTimeOption.value = j + ":00";
+                }
+                alertTime.appendChild(alertTimeOption);
+            }
+            alertTime.selectedIndex = 0;
+            divAlertTime.appendChild(alertTime)
+
+            var divButtonApply = document.createElement("div");
+            divButtonApply.className = "col-auto my-1";
+            var buttonApply = document.createElement("button");
+            buttonApply.type = "button";
+            buttonApply.className = "btn btn-primary";
+            buttonApply.innerHTML = "Apply";
+            buttonApply.style = "margin-right:5px";
+            buttonApply.id = "buttonApply-" + index + "-" + i;
+            buttonApply.onclick = apply;
+            divButtonApply.appendChild(buttonApply);
+
+            var divButtonUnsched = document.createElement("div");
+            divButtonUnsched.className = "col-auto my-1";
+            var buttonUnsched = document.createElement("button");
+            buttonUnsched.type = "button";
+            buttonUnsched.className = "btn btn-danger";
+            buttonUnsched.innerHTML = "Unsched This";
+            buttonUnsched.id = "buttonUnsched-" + index + "-" + i;
+            buttonUnsched.onclick = unsched;
+            divButtonUnsched.appendChild(buttonUnsched);
+
+            divRow.appendChild(status)
+            divRow.appendChild(nameDiv)
+            divRow.appendChild(divGap)
+            divRow.appendChild(divAlertTime)
+            divRow.appendChild(divButtonApply)
+            divRow.appendChild(divButtonUnsched)
+            form.appendChild(divRow)
+        }
+        dayCardBody.appendChild(form)
+        dayCard.appendChild(dayCardHeader)
+        dayCard.appendChild(dayCardBody)
+        return dayCard
+    }
+
+    function apply() {
+        // info[0] name
+        // info[1] date index
+        // info[2] member index
+        var info = this.id.split("-");
+        var thisGap = document.getElementById("gap-" + info[1] + "-" + info[2]);
+        console.log(thisGap.selectedIndex);
+
+        if (thisGap.selectedIndex == 0) {
+            // only in this day
+            var thisStatus = document.getElementById("status-" + info[1] + "-" + info[2]);
+            thisStatus.className = "badge badge-success"
+            thisStatus.innerHTML = "&nbsp; Sched &nbsp;"
+            return;
+        }
+
+        var thisAlertTime = document.getElementById("alertTime-" + info[1] + "-" + info[2]);
+        var gap = 1;
+        if (thisGap.selectedIndex == 2) {
+            // every two days
+            gap = 2;
+        }
+        if (thisGap.selectedIndex == 3) {
+            // every seven days
+            gap = 7;
+        }
+        for (var i = parseInt(info[1]); i <= maxDayIndex; i += gap) {
+            var targetAlertTime = document.getElementById("alertTime-" + i + "-" + info[2]);
+            // console.log("alertTime-" + i + "-" + info[2]);
+            targetAlertTime.selectedIndex = thisAlertTime.selectedIndex
+            var targetStatus = document.getElementById("status-" + i + "-" + info[2])
+            targetStatus.className = "badge badge-success"
+            targetStatus.innerHTML = "&nbsp; Sched &nbsp;"
+        }
+    }
+
+    function unsched() {
+        // info[0] name
+        // info[1] date index
+        // info[2] member index
+        var info = this.id.split("-");
+        var thisGap = document.getElementById("gap-" + info[1] + "-" + info[2]);
+        var thisAlertTime = document.getElementById("alertTime-" + info[1] + "-" + info[2]);
+        var thisStatus = document.getElementById("status-" + info[1] + "-" + info[2]);
+
+        thisGap.selectedIndex = 0;
+        thisAlertTime.selectedIndex = 0;
+        thisStatus.className = "badge badge-secondary";
+        thisStatus.innerHTML = "Unsched";
+    }
+
+    function generate() {
+        var container = document.getElementById("container")
+        var calform = document.getElementById("calform")
+
+        if (document.getElementById("GroupName").selectedIndex == 0) {
+            alert("Unselected Group Name!");
+            return;
+        }
+
+        var groupMember = groups[document.getElementById("GroupName").selectedIndex - 1][1];
+        maxGroupMemberIndex = groupMember.length;
+
+        var startYear = document.getElementById("StartYear").selectedIndex;
+        var startMonth = document.getElementById("StartMonth").selectedIndex;
+        var startDay = document.getElementById("StartDay").selectedIndex;
+        var endYear = document.getElementById("EndYear").selectedIndex;
+        var endMonth = document.getElementById("EndMonth").selectedIndex;
+        var endDay = document.getElementById("EndDay").selectedIndex;
+
+        if (startYear == 0 || startMonth == 0 || startDay == 0 || endYear == 0 || endMonth == 0 || endDay == 0) {
+            alert("Incomplete Date!");
+            return;
+        }
+
+        startYear = startYear + 2018;
+        endYear = endYear + 2018;
+
+        // TODO: other checks
+
+        if (!checkTime(startYear, startMonth, startDay, endYear, endMonth, endDay)) {
+            alert("Invalid Time!");
+            return
+        }
+
+        var start = startYear + "-" + startMonth + "-" + startDay;
+        var end = endYear + "-" + endMonth + "-" + endDay;
+        var days = getDays(start, end);
+        maxDayIndex = days.length - 1;
+
+        for (var i = 0; i < days.length; i++) {
+            container.appendChild(createDayCard(groupMember, days[i], i));
+        }
+
+        // TODO: freeze the input
+        freezeAddActivityFormSelect();
+    }
+
+    function freezeAddActivityFormSelect() {
+        //document.getElementById("ActivityName").value = "";
+        document.getElementById("GroupName").disabled = "true";
+        //document.getElementById("Message").value = "";
+        document.getElementById("StartYear").disabled = "true";
+        document.getElementById("StartMonth").disabled = "true";
+        document.getElementById("StartDay").disabled = "true";
+        document.getElementById("EndYear").disabled = "true";
+        document.getElementById("EndMonth").disabled = "true";
+        document.getElementById("EndDay").disabled = "true";
+    }
+
+    function collectInformation() {
+        var activity = {};
+        activity["activityName"] = document.getElementById("ActivityName").value;
+        activity["userId"] = userId;
+        var groupIndex = document.getElementById("GroupName").selectedIndex - 1;
+        activity["groupId"] = groups[groupIndex][3];
+        activity["message"] = document.getElementById("Message").value;
+        events = [];
+        for (var i = 0; i < maxDayIndex; i++) {
+            // map
+            var dic = {};
+            for (var j = 0; j < maxGroupMemberIndex; j++) {
+                if (document.getElementById("status-" + i + "-" + j).innerHTML != "Unsched") {
+                    var dayString = document.getElementById("dayString-" + i).innerHTML;
+                    var timeString = document.getElementById("alertTime-" + i + "-" + j).value;
+                    var dtString = dayString + " " + timeString;
+                    if (dic.hasOwnProperty(dtString)) {
+                        dic[dtString].push({ "name": groups[groupIndex][1][j], "number": groups[groupIndex][2][j] });
+                    } else {
+                        dic[dtString] = [{ "name": groups[groupIndex][1][j], "number": groups[groupIndex][2][j] }];
+                    }
+                }
+            }
+            // iterate map
+            var res = Object.keys(dic).sort();
+            for (var ind in res) {
+                events.push({ "time": res[ind], "members": dic[res[ind]] });
+            }
+        }
+        activity["events"] = events;
+        console.log(activity);
+        return activity;
+    }
+
+    function addActivity() {
+        if (document.getElementById("ActivityName").value == "") {
+            alert("Empty Activity Name!");
+            return;
+        }
+        if (document.getElementById("GroupName").selectedIndex == 0) {
+            alert("Unselected Group Name!");
+            return;
+        }
+        if (document.getElementById("Message").value == "") {
+            alert("Empty Message!");
+            return;
+        }
+
+        apigClient.addactivitiesPost({}, collectInformation(), {})
+            .then(function(result) {
+                // Add success callback code here.
+                console.log("good");
+                console.log(result);
+                alert("success");
+            }).catch(function(result) {
+                // Add error callback code here.
+                console.log("bad");
+                console.log(result);
+            });
+    }
+    </script>
+</head>
+
+<body>
+    <div class="container-fluid" id="container">
+        <h1>Add Activity</h1>
+        <div class="card" id="calform">
+            <form style="margin: 20px">
+                <div class="form-group row">
+                    <label for="ActivityName" class="col-sm-2 col-form-label">Activity Name:</label>
+                    <div class="col-sm-4">
+                        <input type="text" class="form-control" id="ActivityName">
+                    </div>
+                    <label for="GroupName" class="col-sm-2 col-form-label">Group Name:</label>
+                    <div class="col-sm-4">
+                        <select id="GroupName" class="form-control">
+                            <option selected>Choose...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <label for="Message" class="col-sm-2 col-form-label">Message:</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" id="Message">
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="form-group col-md-2">
+                        <label for="StartYear">Start Year</label>
+                        <select id="StartYear" class="form-control">
+                            <option selected>Choose...</option>
+                            <option>2019</option>
+                            <option>2020</option>
+                        </select>
+                    </div>
+                    <div class="form-group col-md-2">
+                        <label for="StartMonth">Start Month</label>
+                        <select id="StartMonth" class="form-control">
+                            <option selected>Choose...</option>
+                            <option>Jan</option>
+                            <option>Feb</option>
+                            <option>Mar</option>
+                            <option>Apr</option>
+                            <option>May</option>
+                            <option>Jun</option>
+                            <option>Jul</option>
+                            <option>Aug</option>
+                            <option>Sep</option>
+                            <option>Oct</option>
+                            <option>Nov</option>
+                            <option>Dec</option>
+                        </select>
+                    </div>
+                    <div class="form-group col-md-2">
+                        <label for="StartDay">Start Day</label>
+                        <select id="StartDay" class="form-control">
+                            <option selected>Choose...</option>
+                            <option>01</option>
+                            <option>02</option>
+                            <option>03</option>
+                            <option>04</option>
+                            <option>05</option>
+                            <option>06</option>
+                            <option>07</option>
+                            <option>08</option>
+                            <option>09</option>
+                            <option>10</option>
+                            <option>11</option>
+                            <option>12</option>
+                            <option>13</option>
+                            <option>14</option>
+                            <option>15</option>
+                            <option>16</option>
+                            <option>17</option>
+                            <option>18</option>
+                            <option>19</option>
+                            <option>20</option>
+                            <option>21</option>
+                            <option>22</option>
+                            <option>23</option>
+                            <option>24</option>
+                            <option>25</option>
+                            <option>26</option>
+                            <option>27</option>
+                            <option>28</option>
+                            <option>29</option>
+                            <option>30</option>
+                            <option>31</option>
+                        </select>
+                    </div>
+                    <div class="form-group col-md-2">
+                        <label for="EndYear">End Year</label>
+                        <select id="EndYear" class="form-control">
+                            <option selected>Choose...</option>
+                            <option>2019</option>
+                            <option>2020</option>
+                        </select>
+                    </div>
+                    <div class="form-group col-md-2">
+                        <label for="EndMonth">End Month</label>
+                        <select id="EndMonth" class="form-control">
+                            <option selected>Choose...</option>
+                            <option>Jan</option>
+                            <option>Feb</option>
+                            <option>Mar</option>
+                            <option>Apr</option>
+                            <option>May</option>
+                            <option>Jun</option>
+                            <option>Jul</option>
+                            <option>Aug</option>
+                            <option>Sep</option>
+                            <option>Oct</option>
+                            <option>Nov</option>
+                            <option>Dec</option>
+                        </select>
+                    </div>
+                    <div class="form-group col-md-2">
+                        <label for="EndDay">End Day</label>
+                        <select id="EndDay" class="form-control">
+                            <option selected>Choose...</option>
+                            <option>01</option>
+                            <option>02</option>
+                            <option>03</option>
+                            <option>04</option>
+                            <option>05</option>
+                            <option>06</option>
+                            <option>07</option>
+                            <option>08</option>
+                            <option>09</option>
+                            <option>10</option>
+                            <option>11</option>
+                            <option>12</option>
+                            <option>13</option>
+                            <option>14</option>
+                            <option>15</option>
+                            <option>16</option>
+                            <option>17</option>
+                            <option>18</option>
+                            <option>19</option>
+                            <option>20</option>
+                            <option>21</option>
+                            <option>22</option>
+                            <option>23</option>
+                            <option>24</option>
+                            <option>25</option>
+                            <option>26</option>
+                            <option>27</option>
+                            <option>28</option>
+                            <option>29</option>
+                            <option>30</option>
+                            <option>31</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-5">
+                        <button type="button" class="btn btn-primary" onclick="generate()">Generate Calendar</button>
+                    </div>
+                    <div class="col-5">
+                        <button type="button" class="btn btn-primary" onclick="addActivity()">Submit</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    </div>
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+</body>
+<!--
+        <div class="card">
+            <h6 class="card-header">Oct 20 2019</h6>
+            <div class="card-body">
+                <form>
+                    <div class="form-row align-items-center">
+                        <span class="badge badge-success">Success</span>
+                        <div class="col-2">
+                            <h5>asdfsagggggggdf</h5>
+                        </div>
+                        <div class="col-auto my-1">
+                            <select class="custom-select my-1 mr-sm-2" id="inlineFormCustomSelectPref">
+                                <option selected>Only this day</option>
+                                <option value="1">Every one day from this day</option>
+                                <option value="2">Every two days from this day</option>
+                                <option value="3">Every seven days from this day</option>
+                            </select>
+                        </div>
+                        <div class="col-auto my-1">
+                            <select class="custom-select my-1 mr-sm-2" id="inlineFormCustomSelectPref">
+                                <option selected>7:00 - 8:00</option>
+                                <option value="1">8:00 - 9:00</option>
+                                <option value="2">9:00 - 10:00</option>
+                                <option value="3">10:00 - 11:00</option>
+                                <option value="4">11:00 - 12:00</option>
+                                <option value="5">12:00 - 13:00</option>
+                                <option value="6">13:00 - 14:00</option>
+                                <option value="7">14:00 - 15:00</option>
+                                <option value="8">15:00 - 16:00</option>
+                                <option value="9">16:00 - 17:00</option>
+                                <option value="10">17:00 - 18:00</option>
+                                <option value="11">18:00 - 19:00</option>
+                                <option value="12">20:00 - 21:00</option>
+                                <option value="13">21:00 - 22:00</option>
+                                <option value="14">22:00 - 23:00</option>
+                            </select>
+                        </div>
+                        <div class="col-auto my-1">
+                            <button type="button" class="btn btn-primary">Apply</button>
+                        </div>
+                        <div class="col-auto my-1">
+                            <button type="button" class="btn btn-danger">Unsched this</button>
+                        </div>
+                    </div>
+                    <div class="form-row align-items-center">
+                        <span class="badge badge-success">Success</span>
+                        <div class="col-2">
+                            <h5>asgggggdf</h5>
+                        </div>
+                        <div class="col-auto my-1">
+                            <select class="custom-select my-1 mr-sm-2" id="inlineFormCustomSelectPref">
+                                <option selected>Only this day</option>
+                                <option value="1">Every one day from this day</option>
+                                <option value="2">Every two days from this day</option>
+                                <option value="3">Every seven days from this day</option>
+                            </select>
+                        </div>
+                        <div class="col-auto my-1">
+                            <select class="custom-select my-1 mr-sm-2" id="inlineFormCustomSelectPref">
+                                <option selected>7:00 - 8:00</option>
+                                <option value="1">8:00 - 9:00</option>
+                                <option value="2">9:00 - 10:00</option>
+                                <option value="3">10:00 - 11:00</option>
+                            </select>
+                        </div>
+                        <div class="col-auto my-1">
+                            <button type="button" class="btn btn-primary">Apply</button>
+                        </div>
+                        <div class="col-auto my-1">
+                            <button type="button" class="btn btn-danger">Unsched this</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+-->
+
+</html>

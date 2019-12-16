@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>
+        dsafad
+    </title>
+    <script type="text/javascript">
+    function getTokenID() {
+        var href = window.location.href;
+        var parts = href.split('#')[1].split('&');
+        var id_token = parts[0].split('=')[1];
+        var access_id = parts[1].split('=')[1];
+        var expires_in = parts[2].split('=')[1];
+        var token_type = parts[3].split('=')[1];
+        return [id_token, access_id]
+    }
+    var arr = getTokenID();
+    console.log(arr);
+
+    var at = arr[1];
+    var payload = at.split('.')[1]
+    console.log(payload);
+
+    var json_string = atob(payload);
+    console.log(json_string);
+    </script>
+</head>
+
+<body>
+</body>
+
+</html>

@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+    <title>My Home Page</title>
+    <script type="text/javascript" src="lib/axios/dist/axios.standalone.js"></script>
+    <script type="text/javascript" src="lib/CryptoJS/rollups/hmac-sha256.js"></script>
+    <script type="text/javascript" src="lib/CryptoJS/rollups/sha256.js"></script>
+    <script type="text/javascript" src="lib/CryptoJS/components/hmac.js"></script>
+    <script type="text/javascript" src="lib/CryptoJS/components/enc-base64.js"></script>
+    <script type="text/javascript" src="lib/url-template/url-template.js"></script>
+    <script type="text/javascript" src="lib/apiGatewayCore/sigV4Client.js"></script>
+    <script type="text/javascript" src="lib/apiGatewayCore/apiGatewayClient.js"></script>
+    <script type="text/javascript" src="lib/apiGatewayCore/simpleHttpClient.js"></script>
+    <script type="text/javascript" src="lib/apiGatewayCore/utils.js"></script>
+    <script type="text/javascript" src="apigClient.js"></script>
+    <script type="text/javascript">
+    function getTokenID() {
+        var href = window.location.href;
+        var parts = href.split('#')[1].split('&');
+        var id_token = parts[0].split('=')[1];
+        var access_id = parts[1].split('=')[1];
+        var expires_in = parts[2].split('=')[1];
+        var token_type = parts[3].split('=')[1];
+        return [id_token, access_id]
+    }
+    var arr = getTokenID();
+    console.log(arr);
+
+    var at = arr[1];
+    var payload = at.split('.')[1]
+    console.log(payload);
+
+    var json_string = atob(payload);
+    console.log(json_string);
+
+    var json_obj = JSON.parse(json_string);
+    var userId = "abc";
+    userId = json_obj["username"];
+    console.log(userId);
+    console.log(json_obj);
+    console.log(json_obj["username"]);
+
+    var apigClient = apigClientFactory.newClient();
+
+    apigClient.querygroupPost({}, { "userId": userId }, {})
+        .then(function(result) {
+            // Add success callback code here.
+            console.log("good");
+            console.log(result);
+            for (var i = 0; i < result.data.body.length; i++) {
+                var groupId = result.data.body[i].groupId;
+                var groupName = result.data.body[i].groupName;
+                var memberNames = [];
+                var memberNumbers = [];
+                for (var j = 0; j < result.data.body[i].members.length; j++) {
+                    memberNames.push(result.data.body[i].members[j].name);
+                    memberNumbers.push(result.data.body[i].members[j].number);
+                }
+                addGroupOnHTML(groupName, groupId, memberNames, memberNumbers);
+            }
+        }).catch(function(result) {
+            // Add error callback code here.
+            console.log("bad");
+            console.log(result);
+        });
+
+    apigClient.queryactivityPost({}, { "userId": userId }, {})
+        .then(function(result) {
+            // Add success callback code here.
+            console.log("good activities");
+            console.log(result);
+            for (var i = 0; i < result.data.body.length; i++) {
+                var activityId = result.data.body[i].activityId;
+                var activityName = result.data.body[i].activityName;
+                var eventTimes = [];
+                var eventMemberNames = [];
+                var eventMemberNumbers = [];
+                for (var j = 0; j < result.data.body[i].events.length; j++) {
+                    eventTimes.push(result.data.body[i].events[j].time);
+                    var names = [];
+                    var numbers = [];
+                    for (var k = 0; k < result.data.body[i].events[j].members.length; k++) {
+                        names.push(result.data.body[i].events[j].members[k].name);
+                        numbers.push(result.data.body[i].events[j].members[k].number);
+                    }
+                    eventMemberNames.push(names);
+                    eventMemberNumbers.push(numbers);
+                }
+                addActivityOnHTML(activityName, activityId, eventTimes, eventMemberNames, eventMemberNumbers);
+            }
+        }).catch(function(result) {
+            // Add error callback code here.
+            console.log("bad activities");
+            console.log(result);
+        });
+
+
+    function randomId() {
+        return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    }
+
+    function to() {
+    	window.location.href="create_activity_page.html?userId=" + userId;
+    }
+
+    function clearAddGroupForm() {
+        for (var i = 1; i <= 6; i++) {
+            var inputMemberName = document.getElementById("MemberName" + i);
+            var inputMemberNumber = document.getElementById("MemberNumber" + i);
+            inputMemberName.value = "";
+            inputMemberNumber.value = "";
+        }
+        document.getElementById("GroupName").value = ""
+    }
+
+    function sendAddGroupMessageToLambda(groupName, memberNames, memberNumbers) {
+        var params = {};
+        var body = {};
+        var additionalParams = {};
+
+        body["userId"] = userId;
+        var members = [];
+        for (var i = 0; i < memberNames.length; i++) {
+            members.push({ "name": memberNames[i], "number": memberNumbers[i] });
+        }
+        body["groups"] = {};
+        body["groups"]["members"] = members;
+        body["groups"]["groupname"] = groupName;
+
+        console.log(body);
+
+        apigClient.addgroupsPost(params, body, additionalParams)
+            .then(function(result) {
+                // Add success callback code here.
+                console.log("good");
+                console.log(result);
+                var groupId = result.data.body.groupId
+                if (groupId != "cannot insert") {
+                    addGroupOnHTML(groupName, groupId, memberNames, memberNumbers);
+                    clearAddGroupForm();
+                } else {
+                    alert("Cannot Insert!");
+                }
+            }).catch(function(result) {
+                // Add error callback code here.
+                console.log("bad");
+                console.log(result);
+            });
+    }
+
+    function sendDeleteGroupMessageToLambda() {
+        var groupId = this.id.split("-")[1];
+        var params = {};
+        var body = { "userId": userId, "groupId": groupId };
+        var additionalParams = {};
+        console.log(body);
+
+        apigClient.deletegroupPost(params, body, additionalParams)
+            .then(function(result) {
+                // Add success callback code here.
+                console.log("good");
+                console.log(result);
+                if (result.data.body.str == "success") {
+                    var element = document.getElementById(groupId);
+                    element.parentNode.removeChild(element);
+                } else {
+                    alert("Cannot delete this group because some activities rely on this group!");
+                }
+            }).catch(function(result) {
+                // Add error callback code here.
+                console.log("bad");
+                console.log(result);
+            });
+    }
+
+    function sendDeleteActivityMessageToLambda() {
+        var activityId = this.id.split("-")[1];
+        var params = {};
+        var body = { "userId": userId, "activityId": activityId };
+        var additionalParams = {};
+
+        apigClient.deleteactivityPost(params, body, additionalParams)
+            .then(function(result) {
+                // Add success callback code here.
+                console.log("good");
+                console.log(result);
+                var element = document.getElementById(activityId);
+                element.parentNode.removeChild(element);
+
+            }).catch(function(result) {
+                // Add error callback code here.
+                console.log("bad");
+                console.log(result);
+            });
+    }
+
+    function addGroupOnHTML(groupName, groupId, memberNames, memberNumbers) {
+        var divCard = document.createElement("div");
+        divCard.className = "card";
+        divCard.id = groupId;
+
+        var divCardHeader = document.createElement("div");
+        divCardHeader.className = "card-header";
+        divCardHeader.id = "header-" + groupId;
+
+        var buttonDrop = document.createElement("button");
+        buttonDrop.className = "btn btn-primary";
+        buttonDrop.type = "button";
+        buttonDrop.setAttribute("data-toggle", "collapse");
+        buttonDrop.setAttribute("data-target", "#collapse-" + groupId);
+        buttonDrop.setAttribute("aria-expanded", "true");
+        buttonDrop.setAttribute("aria-controls:", "collapse-" + groupId);
+        buttonDrop.innerHTML = groupName;
+
+        var buttonDelete = document.createElement("button");
+        buttonDelete.className = "btn btn-danger";
+        buttonDelete.style = "float: right;";
+        buttonDelete.id = "delete-" + groupId;
+        buttonDelete.onclick = sendDeleteGroupMessageToLambda;
+        buttonDelete.innerHTML = "Delete";
+
+        var divCollapse = document.createElement("div");
+        divCollapse.id = "collapse-" + groupId;
+        divCollapse.className = "collapse";
+        divCollapse.setAttribute("aria-labelledby", "header-" + groupId);
+        divCollapse.setAttribute("data-parent", "#accordionExample");
+
+        var divCardBody = document.createElement("div");
+        divCardBody.className = "card-body";
+
+        var divRow = document.createElement("div");
+        divRow.className = "row";
+
+        for (var i = 0; i < memberNames.length; i++) {
+            var divCol = document.createElement("div");
+            divCol.className = "col-md-2";
+
+            var pMemberName = document.createElement("p");
+            pMemberName.style = "text-align: center;";
+            pMemberName.innerHTML = memberNames[i];
+
+            var pMemberNumber = document.createElement("p");
+            pMemberNumber.style = "text-align: center;";
+            pMemberNumber.innerHTML = memberNumbers[i];
+
+            divCol.appendChild(pMemberName);
+            divCol.appendChild(pMemberNumber);
+            divRow.appendChild(divCol);
+        }
+
+        divCardBody.appendChild(divRow);
+
+        divCollapse.appendChild(divCardBody);
+
+        divCardHeader.appendChild(buttonDrop);
+        divCardHeader.appendChild(buttonDelete);
+
+        divCard.appendChild(divCardHeader);
+        divCard.appendChild(divCollapse);
+
+        document.getElementById("accordionExample").appendChild(divCard);
+    }
+
+    function addActivityOnHTML(activityName, activityId, eventTimes, eventMemberNames, eventMemberNumbers) {
+        var divCard = document.createElement("div");
+        divCard.className = "card";
+        divCard.id = activityId;
+
+        var divCardHeader = document.createElement("div");
+        divCardHeader.className = "card-header";
+        divCardHeader.id = "header-" + activityId;
+
+        var buttonDrop = document.createElement("button");
+        buttonDrop.className = "btn btn-primary";
+        buttonDrop.type = "button";
+        buttonDrop.setAttribute("data-toggle", "collapse");
+        buttonDrop.setAttribute("data-target", "#collapse-" + activityId);
+        buttonDrop.setAttribute("aria-expanded", "true");
+        buttonDrop.setAttribute("aria-controls:", "collapse-" + activityId);
+        buttonDrop.innerHTML = activityName;
+
+        var buttonDelete = document.createElement("button");
+        buttonDelete.className = "btn btn-danger";
+        buttonDelete.style = "float: right;";
+        buttonDelete.id = "delete-" + activityId;
+        buttonDelete.onclick = sendDeleteActivityMessageToLambda;
+        buttonDelete.innerHTML = "Delete";
+
+        var divCollapse = document.createElement("div");
+        divCollapse.id = "collapse-" + activityId;
+        divCollapse.className = "collapse";
+        divCollapse.setAttribute("aria-labelledby", "header-" + activityId);
+        divCollapse.setAttribute("data-parent", "#accordion-activity");
+
+        var divCardBody = document.createElement("div");
+        divCardBody.className = "card-body";
+
+        for (var i = 0; i < eventTimes.length; i++) {
+            var divRowTime = document.createElement("div");
+            divRowTime.className = "row";
+
+            var divColTime = document.createElement("div");
+            divColTime.className = "col-md-1";
+
+            var spanTime = document.createElement("span");
+            spanTime.className = "badge badge-secondary";
+            spanTime.innerHTML = eventTimes[i];
+
+            divColTime.appendChild(spanTime);
+            divRowTime.appendChild(divColTime);
+
+            var divRow = document.createElement("div");
+            divRow.className = "row";
+
+            for (var j = 0; j < eventMemberNames[i].length; j++) {
+                var divCol = document.createElement("div");
+                divCol.className = "col-md-2";
+
+                var pMemberName = document.createElement("p");
+                pMemberName.style = "text-align: center;";
+                pMemberName.innerHTML = eventMemberNames[i][j];
+
+                var pMemberNumber = document.createElement("p");
+                pMemberNumber.style = "text-align: center;";
+                pMemberNumber.innerHTML = eventMemberNumbers[i][j];
+
+                divCol.appendChild(pMemberName);
+                divCol.appendChild(pMemberNumber);
+                divRow.appendChild(divCol);
+            }
+
+            divCardBody.appendChild(divRowTime);
+            divCardBody.appendChild(divRow);
+        }
+
+
+        divCollapse.appendChild(divCardBody);
+
+        divCardHeader.appendChild(buttonDrop);
+        divCardHeader.appendChild(buttonDelete);
+
+        divCard.appendChild(divCardHeader);
+        divCard.appendChild(divCollapse);
+
+        document.getElementById("accordion-activity").appendChild(divCard);
+    }
+
+    function addGroup() {
+        var groupName = document.getElementById("GroupName").value;
+        if (groupName == "") {
+            alert("No Group Name!");
+            return;
+        }
+
+        var memberNames = [];
+        var memberNumbers = [];
+
+        for (var i = 1; i <= 6; i++) {
+            var inputMemberName = document.getElementById("MemberName" + i);
+            var inputMemberNumber = document.getElementById("MemberNumber" + i);
+            if (inputMemberName.value != "" && inputMemberNumber.value != "") {
+                memberNames.push(inputMemberName.value);
+                memberNumbers.push(inputMemberNumber.value);
+            }
+        }
+
+        if (memberNames.length == 0) {
+            alert("No Complete Member Information!");
+            return;
+        }
+
+        sendAddGroupMessageToLambda(groupName, memberNames, memberNumbers);
+    }
+    </script>
+</head>
+
+<body>
+    <div class="container-fluid" id="container">
+        <h1>Home Page</h1>
+        <div class="card" style="padding: 20px">
+            <nav>
+                <div class="nav nav-pills" id="nav-tab" role="tablist">
+                    <a class="nav-item nav-link active" id="nav-groups-tab" data-toggle="tab" href="#nav-groups" role="tab" aria-controls="nav-groups" aria-selected="true">Groups</a>
+                    <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-contact" role="tab" aria-controls="nav-contact" aria-selected="false">Activities</a>
+                </div>
+            </nav>
+            <div style="height: 20px"></div>
+            <div class="tab-content" id="nav-tabContent">
+                <div class="tab-pane fade show active" id="nav-groups" role="tabpanel" aria-labelledby="nav-groups-tab">
+                    <div class="accordion" id="accordionExample">
+                        <div class="card" id="calform">
+                            <div class="card-header" id="AddGroupHead">
+                                <button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#AddGroup" aria-expanded="false" aria-controls="AddGroup">
+                                    Add Group
+                                </button>
+                            </div>
+                            <div id="AddGroup" class="collapse" aria-labelledby="AddGroupHead" data-parent="#accordionExample">
+                                <form style="margin: 20px">
+                                    <div class="form-group row">
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberName1">Member Name 1</label>
+                                            <input type="text" class="form-control" id="MemberName1">
+                                        </div>
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberNumber1">Phone Number 1</label>
+                                            <input type="text" class="form-control" id="MemberNumber1">
+                                        </div>
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberName2">Member Name 2</label>
+                                            <input type="text" class="form-control" id="MemberName2">
+                                        </div>
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberNumber2">Phone Number 2</label>
+                                            <input type="text" class="form-control" id="MemberNumber2">
+                                        </div>
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberName3">Member Name 3</label>
+                                            <input type="text" class="form-control" id="MemberName3">
+                                        </div>
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberNumber3">Phone Number 3</label>
+                                            <input type="text" class="form-control" id="MemberNumber3">
+                                        </div>
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberName4">Member Name 4</label>
+                                            <input type="text" class="form-control" id="MemberName4">
+                                        </div>
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberNumber4">Phone Number 4</label>
+                                            <input type="text" class="form-control" id="MemberNumber4">
+                                        </div>
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberName5">Member Name 5</label>
+                                            <input type="text" class="form-control" id="MemberName5">
+                                        </div>
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberNumber5">Phone Number 5</label>
+                                            <input type="text" class="form-control" id="MemberNumber5">
+                                        </div>
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberName6">Member Name 6</label>
+                                            <input type="text" class="form-control" id="MemberName6">
+                                        </div>
+                                        <div class="form-group col-md-2">
+                                            <label for="MemberNumber6">Phone Number 6</label>
+                                            <input type="text" class="form-control" id="MemberNumber6">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row">
+                                        <label for="GroupName" class="col-sm-2 col-form-label">Group Name:</label>
+                                        <div class="col-sm-4">
+                                            <input type="text" class="form-control" id="GroupName">
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <button class="btn btn-primary" type="button" onclick="addGroup()"> Add </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="nav-contact" role="tabpanel" aria-labelledby="nav-contact-tab">
+                    <div class="accordion" id="accordion-activity">
+                        <div class="card">
+                            <div class="card-header">
+                                <button class="btn btn-primary" type="button" onclick="to()">Add Activity</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+</body>
+
+</html>
+<!--
+<div class="card">
+    <div class="card-header" id="headingOne">
+        <button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+            Collapsible Group Item #1
+        </button>
+        <button class="btn btn-danger" style="float: right;">Delete</button>
+    </div>
+    <div id="collapseOne" class="collapse" aria-labelledby="headingOne" data-parent="#accordionExample">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-2">
+                    <p style="text-align: center;">adsfgdsgfasdf</p>
+                    <p style="text-align: center;">+16466675204</p>
+                </div>
+                <div class="col-md-2">
+                    <p style="text-align: center;">adsdf</p>
+                    <p style="text-align: center;">+16466675204</p>
+                </div>
+                <div class="col-md-2">
+                    <p style="text-align: center;">adsfasooodf</p>
+                    <p style="text-align: center;">+16466675204</p>
+                </div>
+                <div class="col-md-2">
+                    <p style="text-align: center;">adsfasdf</p>
+                    <p style="text-align: center;">+16466675204</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+-->
